@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student ID QR Attendance System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background-color: #eef2f3;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: #2c3e50; margin-bottom: 30px; }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            max-width: 1100px;
+            width: 100%;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            flex: 1;
+            min-width: 320px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h2 { margin-top: 0; color: #3498db; }
+        input, button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        input { border: 1px solid #ccc; }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #2980b9; }
+        #qrcode { margin-top: 20px; padding: 10px; background: #fff; border: 1px solid #ddd; }
+        #reader { width: 100%; max-width: 400px; border-radius: 8px; overflow: hidden; }
+        #status-message {
+            margin-top: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            padding: 10px;
+            border-radius: 5px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .loading { background-color: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+
+    <h1>ID QR Attendance System</h1>
+    
+    <div class="container">
+        
+        <div class="card">
+            <h2>1. Gumawa ng QR Code ng Estudyante</h2>
+            <p>I-type ang Student ID o Pangalan ng estudyante para gawan ng QR Code para sa kanilang ID card.</p>
+            <input type="text" id="student-id" placeholder="Halimbawa: 2026-0001 o Juan Dela Cruz">
+            <button onclick="generateStudentQR()">I-generate ang QR Code</button>
+            <div id="qrcode"></div>
+            <p style="font-size: 12px; color: #7f8c8d; margin-top: 10px;">Tip: Pwede mong i-right click ang QR code para i-save o i-copy ang imahe at ilagay sa template ng ID nila.</p>
+        </div>
+
+        <div class="card">
+            <h2>2. Attendance Scanner (Para kay Teacher)</h2>
+            <p>I-harap ang QR code ng ID ng estudyante sa camera para ma-check ang attendance.</p>
+            <div id="reader"></div>
+            <div id="status-message">Status: Handa nang mag-scan...</div>
+        </div>
+
+    </div>
+
+    <script>
+        // IKONEKTA DITO ANG GOOGLE WEB APP URL MO MULA SA HAKBANG 1
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby3tQDMh3GYQsEDfKkrKyEAlLmTnSCDqewUUtiBrUXa76cr9w3gkgCPqfoN7LReDdTyKw/exec";
+
+        // --- LOGIC PARA SA PAGGAWA NG QR CODE ---
+        const qrcodeContainer = document.getElementById("qrcode");
+        let qrCode = new QRCode(qrcodeContainer, {
+            text: "Mag-type sa kahon sa itaas",
+            width: 180,
+            height: 180
+        });
+
+        function generateStudentQR() {
+            const idValue = document.getElementById("student-id").value;
+            if (idValue.trim() === "") {
+                alert("Mangyaring maglagay ng Student ID o Pangalan!");
+                return;
+            }
+            qrCode.clear();
+            qrCode.makeCode(idValue); 
+        }
+
+        // --- LOGIC PARA SA SCANNING AT PAGPAPADALA SA GOOGLE SHEETS ---
+        let lastScannedCode = "";
+        let isProcessing = false;
+
+        function onScanSuccess(decodedText, decodedResult) {
+            if (isProcessing || decodedText === lastScannedCode) return; 
+            
+            isProcessing = true;
+            lastScannedCode = decodedText;
+            
+            const statusBox = document.getElementById("status-message");
+            statusBox.className = "loading";
+            statusBox.innerText = `Inirerehistro si: ${decodedText}...`;
+
+            fetch(`${GOOGLE_SCRIPT_URL}?id=${encodeURIComponent(decodedText)}`, { mode: 'no-cors' })
+                .then(() => {
+                    statusBox.className = "success";
+                    statusBox.innerText = `✔️ PASOK NA: ${decodedText}`;
+                    
+                    setTimeout(() => {
+                        statusBox.className = "";
+                        statusBox.innerText = "Handa nang mag-scan uli...";
+                        isProcessing = false;
+                        lastScannedCode = "";
+                    }, 3000);
+                })
+                .catch(error => {
+                    console.error("Error:", error);
+                    statusBox.innerText = "Error sa pagpapadala sa database.";
+                    isProcessing = false;
+                });
+        }
+
+        let html5QrcodeScanner = new Html5QrcodeScanner(
+            "reader", { fps: 15, qrbox: { width: 250, height: 250 } }, false
+        );
+        html5QrcodeScanner.render(onScanSuccess);
+    </script>
+</body>
+</html>f
